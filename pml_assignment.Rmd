@@ -15,6 +15,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 require(caret)
 require(corrplot)
+require(rpart.plot)
 ```
 
 ## Overview
@@ -44,19 +45,31 @@ data.training <- read.csv("pml-training.csv", stringsAsFactors = FALSE, na.strin
 
 __Note!__ When loading the data a __simplification__ has been done, "", "NA" and "NULL" have been cosidered as __NA__ (not vailable data).
 
+#### Creating a train and test dataset
+From the training dataset `data.training` creates 2 separate datasets, train and test, that wil be used to fit and evaluate the model respectively.
+
+```{r testTrainData, cache=TRUE}
+set.seed(19711004)
+inTraining <- createDataPartition(data.training$classe, times = 1, p = 0.7, list = FALSE)
+trainD <- data.training[inTraining,]
+testD <- data.training[-inTraining,]
+```
+
 ## Exploratory Analysis & Data Transformation
 
-Using the __training__ dataset it is possible to start to explore the available predictors in order to understand the pre-processing steps that need to be performed on the datasets in order to have an "optimal" dataset to fit the model.
+Using the __train__ dataset it is possible to start to explore the available predictors in order to understand the pre-processing steps that need to be performed on the datasets in order to have an "optimal" dataset to fit the model. 
+
+Exploration is done using only the train dataset, the transformations applied to the train dataset will be applied to the test dataset as well.
 
 Number of observations and variables
 ```{r trainingDatasetDim}
-dim(data.training)
+dim(trainD)
 ```
 
 Summary for some of the variables of the datataset   
-```{r trainingDatasetStructure}
+```{r trainDatasetStructure}
 #First 15 variables
-summary(data.training[,1:15])
+summary(trainD[,1:15])
 ```
 
 Looking at the summary it is possible to see that 
@@ -67,25 +80,36 @@ Looking at the summary it is possible to see that
 
 For comodity lets split the training dataset into a predictors and outcome datasets
 
-```{r trainigDataReview}
-training.predictors <- data.training[, -160]
-training.outcome <- data.training[, 160]
+```{r trainDataReview}
+trainD.predictors <- trainD[, -160]
+trainD.outcome <- as.factor(trainD[, 160])
+
+#Same transformation applied to test
+testD.predictors <- testD[, -160]
+testD.outcome <- as.factor(testD[, 160])
 ```
 
 ### Dealing with Missing Values
 Lets find out the percentage of missing values for each variable using the following simplification, missing value == NA ...
 
-```{r missingValues, collapse = TRUE}
+```{r percentageMissingValues, collapse = TRUE}
 percentageOfMissingValues <- function(x){
     (sum(is.na(x))/length(x))* 100
 }
 
-#Missing Values into predictors
-missingValueInfo.predictors <- apply(training.predictors, 2, percentageOfMissingValues)
-missingValueInfo.predictors[order(missingValueInfo.predictors, decreasing = TRUE)]
+#Percentage of Missing Values into predictors
+percMissingValue.predictors <- apply(trainD.predictors, 2, percentageOfMissingValues)
+##Higher Percentages
+head(percMissingValue.predictors[order(percMissingValue.predictors, decreasing = TRUE)])
+##Lower Percentages
+tail(percMissingValue.predictors[order(percMissingValue.predictors, decreasing = TRUE)])
 
-#Missing Values into outcome
-percentageOfMissingValues(training.outcome)
+#Percentage of Missing Values into outcome
+percentageOfMissingValues(trainD.outcome)
+```
+
+```{r plotPercentageMissingValues}
+hist(percMissingValue.predictors, main = "Distribution of % Missing Values by Predictor")
 ```
 
 It is possible to see that the variables ends up in two possible bins:
@@ -96,22 +120,28 @@ It is possible to see that the variables ends up in two possible bins:
 For the assignment lets start to consider only the variables that do not have missing values - lets keep those variables
 
 ```{r keepVariablesWithoutMissingValues}
-idx_variablesToKeeps <- which(missingValueInfo.predictors == 0)
-training.predictors <- training.predictors[, idx_variablesToKeeps]
+idx_variablesToKeeps <- which(percMissingValue.predictors == 0)
+trainD.predictors <- trainD.predictors[, idx_variablesToKeeps]
+
+#Same transformation applied to Test
+testD.predictors <- testD.predictors[, idx_variablesToKeeps]
 ```
 
-The simplified `training.predictors` dataset contains only `r dim(training.predictors)[2]` predictors.
+The simplified `trainD.predictors` dataset contains only `r dim(trainD.predictors)[2]` predictors.
 
 ### Removing not relevant predictors
 
-Some of the predictors seem to be not relevant (at first sight) for the prediction. Specifically the following predictors __`r names(training.predictors[,1:7])`__ seem to contain data that is not going to be relevant for the prediction.  
+Some of the predictors seem to be not relevant (at first sight) for the prediction. Specifically the following predictors __`r names(trainD.predictors[,1:7])`__ seem to contain data that is not going to be relevant for the prediction.  
 
 ```{r removeNotRelevantVariables}
 idx_variablesToRemove <- 1:7
-training.predictors <- training.predictors[, -idx_variablesToRemove]
+trainD.predictors <- trainD.predictors[, -idx_variablesToRemove]
+
+#Same transformation applied to Test
+testD.predictors <- testD.predictors[, -idx_variablesToRemove]
 ```
 
-The simplified `training.predictors` dataset contains only `r dim(training.predictors)[2]` predictors.
+The simplified `trainD.predictors` dataset contains only `r dim(trainD.predictors)[2]` predictors.
 
 ### Transformation on Individual Predictors
 
@@ -124,7 +154,7 @@ Focus will be given to remove near-zero-variance predictors and higly correlated
 For the selected predictors there are not prolematic predictors with Near-Zero Variance.
 
 ```{r nearZeroVariance, collapse=TRUE}
-nsv <- nearZeroVar(training.predictors, saveMetrics = TRUE)
+nsv <- nearZeroVar(trainD.predictors, saveMetrics = TRUE)
 nsv
 ```
 
@@ -133,44 +163,136 @@ nsv
 Lets calculate the correlation between predictors
 
 ```{r predictorsCorrelations, collapse=TRUE}
-training.predictors.corr <- cor(training.predictors)
+trainD.predictors.corr <- cor(trainD.predictors)
 ```
 
 and let visually examine the corretion structure between the predictors
 
 ```{r coorelationPlot}
 par(cex = 0.6)
-corrplot(training.predictors.corr, order = "hclust")
+corrplot(trainD.predictors.corr, order = "hclust")
 ```
 
 from the plot is possible to see that there are cluster of highly correlated predictors (see dark blue and dark red points). Another possible simplification is toremove the highly correlated predictors
 
 ```{r higlyCorrelatedPredictors, collapse=TRUE}
-idx_variableToRemove.highCorr <- findCorrelation(training.predictors.corr, cutoff = 0.75)
+idx_variableToRemove.highCorr <- findCorrelation(trainD.predictors.corr, cutoff = 0.75)
 
 #Variables with high correlation 
-names(training.predictors[idx_variableToRemove.highCorr])
+names(trainD.predictors[idx_variableToRemove.highCorr])
+trainD.predictors <- trainD.predictors[, -idx_variableToRemove.highCorr]
 
-training.predictors <- training.predictors[, -idx_variableToRemove.highCorr]
+#Same Transformation applied to Test
+testD.predictors <- testD.predictors[, -idx_variableToRemove.highCorr]
 ```
 
 ```{r predictorsCorrelationsUpdated, collapse=TRUE}
-training.predictors.corr <- cor(training.predictors)
-par(cex = 0.8)
-corrplot(training.predictors.corr, order = "hclust")
+trainD.predictors.corr <- cor(trainD.predictors)
+par(cex = 0.7)
+corrplot(trainD.predictors.corr, order = "hclust")
 ```
 
-The simplified `training.predictors` dataset contains only `r dim(training.predictors)[2]` predictors.
+The simplified `trainD.predictors` dataset contains only `r dim(trainD.predictors)[2]` predictors.
 
+## Models
+
+The idea is to use trees to predict the outcome. Selection of the trees is mainly connected with the easiness to interpret the model itself.
+
+```{r dataPreparation, message=FALSE, warning= FALSE}
+trainD <- data.frame(outcome = trainD.outcome, trainD.predictors)
+testD <- data.frame(outcome = testD.outcome, testD.predictors)
+```
+
+### Classification Trees using `rpart`
+
+Fitting the model based on the `train` dataset ...
+
+```{r model1Fitting, message=FALSE, warning= FALSE}
+mod1Fit <- train(outcome ~ ., method = "rpart", data = trainD)
+```
+
+```{r model1FittingShow}
+print(mod1Fit$finalModel)
+```
+
+```{r model1FittingVisual,message=FALSE, warning= FALSE}
+prp(mod1Fit$finalModel)
+```
+
+Using the fitted model to predict the outcome (`classe` variable) on the `test`dataset ...
+
+```{r model1Prediction,message=FALSE, warning= FALSE}
+mod1Pred <- predict(mod1Fit, newdata=testD)
+```
+
+__Evaluating__ the model ...
+```{r model1Evaluation}
+result1 <- confusionMatrix(mod1Pred, testD$outcome)
+result1
+```
+
+Note!! The accuracy of the model is not very good, the model is performing poorly.
+
+### Random Forests using `rf`
+
+Fitting the model based on the `train` dataset ...
+
+```{r model2Fitting, message=FALSE, warning= FALSE, cache=T}
+library(doMC)
+registerDoMC(cores = 4)
+##For performance reason the number of trees has been limited to 10
+mod2Fit <- train(outcome ~ ., method = "rf", data = trainD, prox = TRUE, ntree=10)
+```
+
+```{r model2FittingShow}
+mod2Fit
+```
+
+Using the fitted model to predict the outcome (`classe` variable) on the `test`dataset ...
+
+```{r model2Prediction,message=FALSE, warning= FALSE}
+mod2Pred <- predict(mod2Fit, newdata=testD)
+```
+
+__Evaluating__ the model ...
+```{r model2Evaluation}
+result2 <- confusionMatrix(mod2Pred, testD$outcome)
+result2
+```
+
+Note!! The accuracy of the model has improved dramatically compared to the prevoius model.
+
+## Out-Of-The-Box observations
+
+Getting the extra data and preparing it in order to be used against the models previously fitted ... 
+
+```{r loadExtraData, cache=TRUE}
+data.testing <- read.csv("pml-testing.csv", stringsAsFactors = FALSE, na.strings=c("", "NA", "NULL"))
+##Removing the last variable - problem_id
+extraD.predictors <- data.testing[, -160]
+extraD.predictors <- extraD.predictors[, idx_variablesToKeeps]
+extraD.predictors <- extraD.predictors[, -idx_variablesToRemove]
+extraD.predictors <- extraD.predictors[, -idx_variableToRemove.highCorr]
+```
+
+Predicting the outcome based on the models previously fitted.
+
+___classification tree model__
+```{r predictExtra1}
+predict(mod1Fit, newdata= extraD.predictors)
+```
+
+___random forests model__
+```{r predictExtra2}
+predict(mod2Fit, newdata= extraD.predictors)
+```
+
+## Environment Info
+
+```{r echo=F}
+sessionInfo()
+```
 
 ## References
 
 __[1]__ Ugulino, W.; Cardador, D.; Vega, K.; Velloso, E.; Milidiu, R.; Fuks, H. Wearable Computing: Accelerometers' Data Classification of Body Postures and Movements. Proceedings of 21st Brazilian Symposium on Artificial Intelligence. Advances in Artificial Intelligence - SBIA 2012. In: Lecture Notes in Computer Science. , pp. 52-61. Curitiba, PR: Springer Berlin / Heidelberg, 2012. ISBN 978-3-642-34458-9. DOI: 10.1007/978-3-642-34459-6_6.
-
-
-
-
-* You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
-
-* Add a reference to the data
-
