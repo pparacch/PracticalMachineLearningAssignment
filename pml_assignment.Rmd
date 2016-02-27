@@ -1,0 +1,176 @@
+---
+title: "Practical Machine Learning Assignment"
+author: "Pier Lorenzo Paracchini"
+date: "27 February 2016"
+output: 
+  html_document: 
+    keep_md: yes
+    toc: yes
+---
+
+```{r setup, include=FALSE, warning=FALSE, message=FALSE}
+Sys.setlocale("LC_ALL", "C")
+options(digits=4)
+knitr::opts_chunk$set(echo = TRUE)
+
+require(caret)
+require(corrplot)
+```
+
+## Overview
+
+_"Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset)."_
+
+One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. The goal of this assignment is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to predict the manner in which they did the exercise. The __outcome__ of the model is the __class__ variable.
+
+_"Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes. Participants were supervised by an experienced weight lifter to make sure the execution complied to the manner they were supposed to simulate. The exercises were performed by six male participants aged between 20-28 years, with little weight lifting experience. We made sure that all participants could easily simulate the mistakes in a safe and controlled manner by using a relatively light dumbbell (1.25kg)." [1]_
+
+## Data
+
+The training and testing datasets for the assignments are available at the following links:
+
+* training, https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv 
+* testing,  https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+More information about the dataset can be found at the following link (http://groupware.les.inf.puc-rio.br/har) [1].
+
+### Loading the training dataset
+
+Looking at the content of the file it is possible to see that there missing values "" and "NA". The initial approach is to consider "", "NA" as __NAs__.
+
+```{r loadData, cache=TRUE}
+data.training <- read.csv("pml-training.csv", stringsAsFactors = FALSE, na.strings=c("", "NA", "NULL"))
+```
+
+__Note!__ When loading the data a __simplification__ has been done, "", "NA" and "NULL" have been cosidered as __NA__ (not vailable data).
+
+## Exploratory Analysis & Data Transformation
+
+Using the __training__ dataset it is possible to start to explore the available predictors in order to understand the pre-processing steps that need to be performed on the datasets in order to have an "optimal" dataset to fit the model.
+
+Number of observations and variables
+```{r trainingDatasetDim}
+dim(data.training)
+```
+
+Summary for some of the variables of the datataset   
+```{r trainingDatasetStructure}
+#First 15 variables
+summary(data.training[,1:15])
+```
+
+Looking at the summary it is possible to see that 
+
+* some variables that have lot of missing values,
+
+* some variables seems to be not relevant for the prediction __e.g. `r names(data.training[,1:7])`, ..__
+
+For comodity lets split the training dataset into a predictors and outcome datasets
+
+```{r trainigDataReview}
+training.predictors <- data.training[, -160]
+training.outcome <- data.training[, 160]
+```
+
+### Dealing with Missing Values
+Lets find out the percentage of missing values for each variable using the following simplification, missing value == NA ...
+
+```{r missingValues, collapse = TRUE}
+percentageOfMissingValues <- function(x){
+    (sum(is.na(x))/length(x))* 100
+}
+
+#Missing Values into predictors
+missingValueInfo.predictors <- apply(training.predictors, 2, percentageOfMissingValues)
+missingValueInfo.predictors[order(missingValueInfo.predictors, decreasing = TRUE)]
+
+#Missing Values into outcome
+percentageOfMissingValues(training.outcome)
+```
+
+It is possible to see that the variables ends up in two possible bins:
+
+* variables with mainly missing values (__percentage of missing values >90%__)
+* variables without missing values (__percentage of missing values 0%__)
+
+For the assignment lets start to consider only the variables that do not have missing values - lets keep those variables
+
+```{r keepVariablesWithoutMissingValues}
+idx_variablesToKeeps <- which(missingValueInfo.predictors == 0)
+training.predictors <- training.predictors[, idx_variablesToKeeps]
+```
+
+The simplified `training.predictors` dataset contains only `r dim(training.predictors)[2]` predictors.
+
+### Removing not relevant predictors
+
+Some of the predictors seem to be not relevant (at first sight) for the prediction. Specifically the following predictors __`r names(training.predictors[,1:7])`__ seem to contain data that is not going to be relevant for the prediction.  
+
+```{r removeNotRelevantVariables}
+idx_variablesToRemove <- 1:7
+training.predictors <- training.predictors[, -idx_variablesToRemove]
+```
+
+The simplified `training.predictors` dataset contains only `r dim(training.predictors)[2]` predictors.
+
+### Transformation on Individual Predictors
+
+The initial idea is to predict using trees for the prediction. Trees are in general more resilent to skewness and scaling/ centering issues than other models. For this reason those issues will not be considered for the time being.
+
+Focus will be given to remove near-zero-variance predictors and higly correlated predictors.
+
+#### Near-Zero Variance Predictors
+
+For the selected predictors there are not prolematic predictors with Near-Zero Variance.
+
+```{r nearZeroVariance, collapse=TRUE}
+nsv <- nearZeroVar(training.predictors, saveMetrics = TRUE)
+nsv
+```
+
+#### Between-Predictor Correlation
+
+Lets calculate the correlation between predictors
+
+```{r predictorsCorrelations, collapse=TRUE}
+training.predictors.corr <- cor(training.predictors)
+```
+
+and let visually examine the corretion structure between the predictors
+
+```{r coorelationPlot}
+par(cex = 0.6)
+corrplot(training.predictors.corr, order = "hclust")
+```
+
+from the plot is possible to see that there are cluster of highly correlated predictors (see dark blue and dark red points). Another possible simplification is toremove the highly correlated predictors
+
+```{r higlyCorrelatedPredictors, collapse=TRUE}
+idx_variableToRemove.highCorr <- findCorrelation(training.predictors.corr, cutoff = 0.75)
+
+#Variables with high correlation 
+names(training.predictors[idx_variableToRemove.highCorr])
+
+training.predictors <- training.predictors[, -idx_variableToRemove.highCorr]
+```
+
+```{r predictorsCorrelationsUpdated, collapse=TRUE}
+training.predictors.corr <- cor(training.predictors)
+par(cex = 0.8)
+corrplot(training.predictors.corr, order = "hclust")
+```
+
+The simplified `training.predictors` dataset contains only `r dim(training.predictors)[2]` predictors.
+
+
+## References
+
+__[1]__ Ugulino, W.; Cardador, D.; Vega, K.; Velloso, E.; Milidiu, R.; Fuks, H. Wearable Computing: Accelerometers' Data Classification of Body Postures and Movements. Proceedings of 21st Brazilian Symposium on Artificial Intelligence. Advances in Artificial Intelligence - SBIA 2012. In: Lecture Notes in Computer Science. , pp. 52-61. Curitiba, PR: Springer Berlin / Heidelberg, 2012. ISBN 978-3-642-34458-9. DOI: 10.1007/978-3-642-34459-6_6.
+
+
+
+
+* You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+* Add a reference to the data
+
