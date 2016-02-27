@@ -241,7 +241,7 @@ Fitting the model based on the `train` dataset ...
 library(doMC)
 registerDoMC(cores = 4)
 ##For performance reason the number of trees has been limited to 10
-mod2Fit <- train(outcome ~ ., method = "rf", data = trainD, prox = TRUE, ntree=10)
+mod2Fit <- train(outcome ~ ., method = "rf", data = trainD, prox = TRUE, ntree=50)
 ```
 
 ```{r model2FittingShow}
@@ -277,12 +277,14 @@ extraD.predictors <- extraD.predictors[, -idx_variableToRemove.highCorr]
 
 Predicting the outcome based on the models previously fitted.
 
-___classification tree model__
+__classification tree model__
+
 ```{r predictExtra1}
 predict(mod1Fit, newdata= extraD.predictors)
 ```
 
-___random forests model__
+__random forests model__
+
 ```{r predictExtra2}
 predict(mod2Fit, newdata= extraD.predictors)
 ```

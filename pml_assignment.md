@@ -424,7 +424,7 @@ Fitting the model based on the `train` dataset ...
 library(doMC)
 registerDoMC(cores = 4)
 ##For performance reason the number of trees has been limited to 10
-mod2Fit <- train(outcome ~ ., method = "rf", data = trainD, prox = TRUE, ntree=10)
+mod2Fit <- train(outcome ~ ., method = "rf", data = trainD, prox = TRUE, ntree=50)
 ```
 
 
@@ -445,9 +445,9 @@ mod2Fit
 ## Resampling results across tuning parameters:
 ## 
 ##   mtry  Accuracy  Kappa   Accuracy SD  Kappa SD
-##    2    0.9655    0.9563  0.002860     0.003607
-##   16    0.9760    0.9696  0.002365     0.002992
-##   31    0.9612    0.9509  0.004377     0.005554
+##    2    0.9830    0.9785  0.002089     0.002649
+##   16    0.9844    0.9802  0.001757     0.002225
+##   31    0.9700    0.9621  0.003488     0.004420
 ## 
 ## Accuracy was used to select the optimal model using  the largest value.
 ## The final value used for the model was mtry = 16.
@@ -472,33 +472,33 @@ result2
 ## 
 ##           Reference
 ## Prediction    A    B    C    D    E
-##          A 1669   17    0    2    0
-##          B    4 1107   11    1    2
-##          C    1   11 1007   12    1
-##          D    0    2    8  946    2
-##          E    0    2    0    3 1077
+##          A 1672   17    0    0    0
+##          B    1 1116    9    0    1
+##          C    0    5 1006   12    2
+##          D    1    0   10  947    2
+##          E    0    1    1    5 1077
 ## 
 ## Overall Statistics
 ##                                         
-##                Accuracy : 0.987         
-##                  95% CI : (0.983, 0.989)
+##                Accuracy : 0.989         
+##                  95% CI : (0.986, 0.991)
 ##     No Information Rate : 0.284         
 ##     P-Value [Acc > NIR] : <2e-16        
 ##                                         
-##                   Kappa : 0.983         
+##                   Kappa : 0.986         
 ##  Mcnemar's Test P-Value : NA            
 ## 
 ## Statistics by Class:
 ## 
 ##                      Class: A Class: B Class: C Class: D Class: E
-## Sensitivity             0.997    0.972    0.981    0.981    0.995
-## Specificity             0.995    0.996    0.995    0.998    0.999
-## Pos Pred Value          0.989    0.984    0.976    0.987    0.995
-## Neg Pred Value          0.999    0.993    0.996    0.996    0.999
+## Sensitivity             0.999    0.980    0.981    0.982    0.995
+## Specificity             0.996    0.998    0.996    0.997    0.999
+## Pos Pred Value          0.990    0.990    0.981    0.986    0.994
+## Neg Pred Value          1.000    0.995    0.996    0.997    0.999
 ## Prevalence              0.284    0.194    0.174    0.164    0.184
-## Detection Rate          0.284    0.188    0.171    0.161    0.183
-## Detection Prevalence    0.287    0.191    0.175    0.163    0.184
-## Balanced Accuracy       0.996    0.984    0.988    0.989    0.997
+## Detection Rate          0.284    0.190    0.171    0.161    0.183
+## Detection Prevalence    0.287    0.192    0.174    0.163    0.184
+## Balanced Accuracy       0.997    0.989    0.988    0.990    0.997
 ```
 
 Note!! The accuracy of the model has improved dramatically compared to the prevoius model.
@@ -519,7 +519,8 @@ extraD.predictors <- extraD.predictors[, -idx_variableToRemove.highCorr]
 
 Predicting the outcome based on the models previously fitted.
 
-___classification tree model__
+__classification tree model__
+
 
 ```r
 predict(mod1Fit, newdata= extraD.predictors)
@@ -530,7 +531,8 @@ predict(mod1Fit, newdata= extraD.predictors)
 ## Levels: A B C D E
 ```
 
-___random forests model__
+__random forests model__
+
 
 ```r
 predict(mod2Fit, newdata= extraD.predictors)
@@ -552,29 +554,28 @@ predict(mod2Fit, newdata= extraD.predictors)
 ## [1] C/C/C/C/C/no_NO.UTF-8
 ## 
 ## attached base packages:
-## [1] parallel  stats     graphics  grDevices utils     datasets  methods  
-## [8] base     
+## [1] stats     graphics  grDevices utils     datasets  methods   base     
 ## 
 ## other attached packages:
-##  [1] randomForest_4.6-12 doMC_1.3.4          iterators_1.0.8    
-##  [4] foreach_1.4.3       rpart.plot_1.5.3    rpart_4.1-10       
-##  [7] corrplot_0.73       caret_6.0-64        ggplot2_2.0.0      
-## [10] lattice_0.20-33    
+## [1] randomForest_4.6-12 rpart.plot_1.5.3    rpart_4.1-10       
+## [4] corrplot_0.73       caret_6.0-64        ggplot2_2.0.0      
+## [7] lattice_0.20-33    
 ## 
 ## loaded via a namespace (and not attached):
 ##  [1] MASS_7.3-45        Matrix_1.2-3       MatrixModels_0.4-1
 ##  [4] Rcpp_0.12.2        SparseM_1.7        car_2.0-25        
 ##  [7] class_7.3-14       codetools_0.2-14   colorspace_1.2-6  
 ## [10] compiler_3.1.2     digest_0.6.8       e1071_1.6-7       
-## [13] evaluate_0.8       formatR_1.2.1      grid_3.1.2        
-## [16] gtable_0.1.2       htmltools_0.3      knitr_1.11        
-## [19] lme4_1.1-10        magrittr_1.5       mgcv_1.8-10       
-## [22] minqa_1.2.4        munsell_0.4.2      nlme_3.1-122      
-## [25] nloptr_1.0.4       nnet_7.3-11        pbkrtest_0.4-4    
-## [28] plyr_1.8.3         quantreg_5.19      reshape2_1.4.1    
-## [31] rmarkdown_0.9.2    scales_0.3.0       splines_3.1.2     
-## [34] stats4_3.1.2       stringi_1.0-1      stringr_1.0.0     
-## [37] tools_3.1.2        yaml_2.1.13
+## [13] evaluate_0.8       foreach_1.4.3      formatR_1.2.1     
+## [16] grid_3.1.2         gtable_0.1.2       htmltools_0.3     
+## [19] iterators_1.0.8    knitr_1.11         lme4_1.1-10       
+## [22] magrittr_1.5       mgcv_1.8-10        minqa_1.2.4       
+## [25] munsell_0.4.2      nlme_3.1-122       nloptr_1.0.4      
+## [28] nnet_7.3-11        parallel_3.1.2     pbkrtest_0.4-4    
+## [31] plyr_1.8.3         quantreg_5.19      reshape2_1.4.1    
+## [34] rmarkdown_0.9.2    scales_0.3.0       splines_3.1.2     
+## [37] stats4_3.1.2       stringi_1.0-1      stringr_1.0.0     
+## [40] tools_3.1.2        yaml_2.1.13
 ```
 
 ## References
