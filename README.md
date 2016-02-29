@@ -3,7 +3,7 @@ Assignment connected with "Practical Machine Learning" module in the Data Scienc
 
 pml_assignment.Rmd -> Assignment RMarkdown
 
-pml_assignment.md -> Generated Assignmnet .md file
+pml_assignment.md -> Generated Assignemnt .md file
 
 pml_assignemnt.html -> Generated Assignment .html file
 
